@@ -83,7 +83,7 @@ export function Sky({ plate }: { plate: Plate }) {
 ## How it works
 
 1. **Sun and moon.** Positions come from low-precision astronomical formulas. The tests check sunrise and sunset against published times to within three minutes, including polar night.
-2. **A plate.** The scene is painted into an 80×45 colour grid, the way a watercolourist paints a sky: a graded wash, then soft brush strokes laid wet into it. The palette follows the sun's *altitude*, not the clock, so 6 pm in Oslo in December and 6 pm in Mumbai in June are different skies. Clouds come in as broad sweeps, high wisps, and at low sun, curtains rising from the horizon. Rain, snow, fog, storms and land at dusk are layered on top.
+2. **A plate.** The scene is painted into a 128×72 colour grid, the way a watercolourist paints a sky: a graded wash, then soft brush strokes laid wet into it. The palette follows the sun's *altitude*, not the clock, so 6 pm in Oslo in December and 6 pm in Mumbai in June are different skies. Clouds come in as broad sweeps, high wisps, and at low sun, curtains rising from the horizon. Rain, snow, fog, storms and land at dusk are layered on top.
 3. **The renderer.** A WebGL2 shader upsamples the plate with a cubic B-spline, which never draws an edge. It adds a gentle current, faint smoky texture and paper grain, and eases between plates so the sky morphs instead of cutting.
 
 Painting a plate is pure and deterministic: the same place, time, conditions and seed always give the same sky.

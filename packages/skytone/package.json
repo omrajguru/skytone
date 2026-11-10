@@ -1,6 +1,6 @@
 {
   "name": "skytone",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A living watercolour sky for any interface. Real sun and moon positions, the live forecast, and a soft WebGL renderer, with no dependencies.",
   "keywords": [
     "sky",
