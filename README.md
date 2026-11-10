@@ -67,6 +67,7 @@ npm run deploy
 
 ## Credits
 
+- Inspired by [Abidur Chowdhury's post](https://x.com/Abidur_C/status/2110397997536420187) on the skies in Hark Pro.
 - Weather and place search: [Open-Meteo](https://open-meteo.com/), CC BY 4.0. Its free API is for non-commercial use.
 - Sun and moon formulas follow [SunCalc](https://github.com/mourner/suncalc) by Vladimir Agafonkin.
 - The home page demo uses the [Stageshow](https://github.com/benjitaylor/skills) kit by Benji Taylor (MIT); see `apps/studio/src/stage/kit`.
