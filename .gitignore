@@ -1,0 +1,16 @@
+node_modules/
+dist/
+lib/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.firebase/
+*.log
+firebase-debug.log*
+.DS_Store
+
+# Local tooling and notes, not part of the project
+.claude/
+skills-lock.json
+PLAN.md

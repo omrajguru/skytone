@@ -1,0 +1,26 @@
+{
+  "name": "skytone-monorepo",
+  "private": true,
+  "type": "module",
+  "description": "Skytone: the sky over anywhere, at any hour.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omrajguru/skytone.git"
+  },
+  "homepage": "https://skytone.site",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/studio",
+    "build": "npm run build -w packages/skytone && npm run build -w apps/studio",
+    "typecheck": "npm run typecheck -w packages/skytone && npm run typecheck -w apps/studio",
+    "test": "npm run test -w packages/skytone",
+    "deploy": "npm run build && firebase deploy --only hosting"
+  }
+}

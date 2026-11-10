@@ -1,0 +1,76 @@
+/* The page is the ground: no plate behind the window */
+.sd .ss-stage {
+  overflow: hidden;
+  background: transparent;
+}
+
+/* One window, inset at the top and running off the bottom */
+.sd-win {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  width: 560px;
+  translate: -50% 0;
+}
+
+.sd .ss-stage[data-layout='compact'] .sd-win {
+  top: 16px;
+  width: 326px;
+}
+
+.sd-body {
+  display: grid;
+  gap: 16px;
+  min-height: 420px;
+  align-content: start;
+  padding: 24px 34px 60px;
+  background: var(--ss-surface);
+}
+
+.sd .ss-stage[data-layout='compact'] .sd-body {
+  padding: 20px 23px 60px;
+}
+
+.sd-head { display: grid; gap: 4px; }
+.sd-label { color: var(--ss-text); font-size: 13px; }
+.sd-value {
+  color: var(--ss-text-strong);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-sky {
+  height: 150px;
+  border-radius: 10px;
+  overflow: hidden;
+  outline: 1px solid oklch(0 0 0 / 0.1);
+  outline-offset: -1px;
+}
+.sd-canvas { display: block; width: 100%; height: 100%; }
+
+.sd-ribbon { position: relative; height: 14px; }
+.sd-track { position: absolute; inset: 0; border-radius: 7px; }
+.sd-hair {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--ss-text-strong);
+  box-shadow: 0 0 0 2px var(--ss-surface);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sd-hair[data-on] { opacity: 1; }
+
+.sd-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+  color: var(--ss-text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
