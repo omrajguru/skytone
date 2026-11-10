@@ -8,8 +8,8 @@ import type { MoonPosition, SunPosition } from './astro.ts';
  * a sky: a graded wash, then soft brush strokes laid wet into it. The renderer upsamples it
  * with a smooth cubic filter. Row 0 is the top of the sky. Values are sRGB 0..255.
  */
-export const PLATE_W = 80;
-export const PLATE_H = 45;
+export const PLATE_W = 128;
+export const PLATE_H = 72;
 const ASPECT = PLATE_W / PLATE_H;
 const CELLS = PLATE_W * PLATE_H;
 export type Plate = Float32Array;
@@ -63,6 +63,34 @@ function rng(seed: number) {
   };
 }
 
+/**
+ * The painter's style: every number that decides how the watercolour looks.
+ * Tuned against a reference by measuring colour, texture, edges and direction.
+ */
+export const STYLE = {
+  sweepCount: 14,
+  sweepWidth: 0.688,
+  sweepLength: 0.303,
+  sweepTilt: 1.563,
+  sweepAlpha: 1.563,
+  crestAlpha: 1.25,
+  shadowAlpha: 1,
+  wispAlpha: 1,
+  curtainAlpha: 1,
+  curtainWidth: 1,
+  washAlpha: 1,
+  bloomAlpha: 1,
+  wetEdge: 0.3,
+  pool: 1,
+};
+export type Style = typeof STYLE;
+
+/** Override style values (used by tuning tools). Clears cached layouts. */
+export function setStyle(next: Partial<Style>) {
+  Object.assign(STYLE, next);
+  layoutCache.clear();
+}
+
 const layoutCache = new Map<number, Layout>();
 
 /** A path that starts at (x, y), heads along `angle` for `len`, and meanders by `wobble`. */
@@ -84,16 +112,16 @@ function layout(seed: number): Layout {
   const r = rng(seed);
 
   // Broad sweeps: the day's main washes of cloud, laid on a slight diagonal.
-  const sweeps: Stroke[] = Array.from({ length: 9 }, (_, i) => {
+  const sweeps: Stroke[] = Array.from({ length: STYLE.sweepCount }, (_, i) => {
     // The first two are the shadow band: a long diagonal that arrives with the first cloud.
     const band = i < 2;
-    const y = band ? 0.12 + r() * 0.2 : i < 6 ? -0.02 + r() * 0.34 : 0.3 + r() * 0.3;
-    const len = band ? 1.1 + r() * 0.6 : 0.9 + r() * 0.8;
+    const y = band ? 0.12 + r() * 0.2 : i < STYLE.sweepCount * 0.66 ? -0.02 + r() * 0.34 : 0.3 + r() * 0.3;
+    const len = (band ? 1.1 + r() * 0.6 : 0.9 + r() * 0.8) * STYLE.sweepLength;
     const tilt = (r() < 0.5 ? -1 : 1) * (0.1 + r() * 0.16);
     return {
-      pts: path(r, -0.45 + r() * 0.9, y, band ? tilt : (r() - 0.5) * 0.7, len, band ? 0.02 + r() * 0.03 : 0.07 + r() * 0.09),
-      w0: band ? 0.14 + r() * 0.1 : 0.18 + r() * 0.16,
-      w1: band ? 0.1 + r() * 0.08 : 0.12 + r() * 0.14,
+      pts: path(r, -0.45 + r() * 0.9, y, (band ? tilt : (r() - 0.5) * 0.7) * STYLE.sweepTilt, len, band ? 0.02 + r() * 0.03 : 0.07 + r() * 0.09),
+      w0: (band ? 0.14 + r() * 0.1 : 0.18 + r() * 0.16) * STYLE.sweepWidth,
+      w1: (band ? 0.1 + r() * 0.08 : 0.12 + r() * 0.14) * STYLE.sweepWidth,
       threshold: band ? 0.18 + r() * 0.15 : r(),
       shade: band ? 0.1 + r() * 0.2 : 0.38 + r() * 0.62,
       warm: r(),
@@ -121,8 +149,8 @@ function layout(seed: number): Layout {
     const h = 0.3 + r() * 0.5;
     return {
       pts: path(r, x, -0.08, Math.PI / 2 + (r() - 0.5) * 0.7, h, 0.03 + r() * 0.04),
-      w0: 0.13 + r() * 0.12,
-      w1: 0.09 + r() * 0.07,
+      w0: (0.13 + r() * 0.12) * STYLE.curtainWidth,
+      w1: (0.09 + r() * 0.07) * STYLE.curtainWidth,
       threshold: r(),
       shade: r(),
       warm: r(),
@@ -242,8 +270,8 @@ function washStroke(buf: Plate, col: RGB, alpha: number, pool: number) {
   for (let k = 0; k < CELLS; k++) {
     const c = coverage[k];
     if (c < 0.01) continue;
-    const a = alpha * (0.7 * c + 0.3 * smoothstep(0.05, 0.6, c));
-    const rim = smoothstep(0.08, 0.3, c) * (1 - smoothstep(0.3, 0.7, c)) * pool;
+    const a = alpha * ((1 - STYLE.wetEdge) * c + STYLE.wetEdge * smoothstep(0.05, 0.6, c));
+    const rim = smoothstep(0.08, 0.3, c) * (1 - smoothstep(0.3, 0.7, c)) * pool * STYLE.pool;
     const i = k * 3;
     for (let ch = 0; ch < 3; ch++) {
       const target = col[ch] + (deep[ch] - col[ch]) * rim;
@@ -288,13 +316,13 @@ export function paintPlate(scene: SceneInput, out: Plate = createPlate()): Plate
   });
   for (const w of L.washes) {
     const col = w.role === 'shadow' ? mix(P.shadow, P.mid, 0.55) : P[w.role];
-    blob(out, w.x, w.y, w.rx, w.ry, w.rot, col, w.a * (1 - 0.5 * cond.fog), 0.9);
+    blob(out, w.x, w.y, w.rx, w.ry, w.rot, col, w.a * STYLE.washAlpha * (1 - 0.5 * cond.fog), 0.9);
   }
 
   // 2. Light around the sun, and a cream bloom beneath it on cloudy days.
   blob(out, sunX, sunY, 0.62, 0.38, 0, P.glow, gs * 0.85);
   const bloom = smoothstep(0.15, 0.6, cond.cloud) * (1 - smoothstep(0.85, 1, cond.cloud)) * smoothstep(-2, 10, sun.altitude);
-  blob(out, clamp(sunX, 0.2, 0.8) + 0.08, 0.12, 0.42, 0.24, 0, P.light, 0.55 * bloom, 1.0);
+  blob(out, clamp(sunX, 0.2, 0.8) + 0.08, 0.12, 0.42, 0.24, 0, P.light, 0.55 * bloom * STYLE.bloomAlpha, 1.0);
 
   // 3. Moonlight.
   if (moon.altitude > 0) {
@@ -316,7 +344,7 @@ export function paintPlate(scene: SceneInput, out: Plate = createPlate()): Plate
 
   // Wisps first, so lower cloud sits in front of them.
   for (const s of L.wisps) {
-    const a = arrive(s, high) * 0.28;
+    const a = arrive(s, high) * 0.28 * STYLE.wispAlpha;
     if (a <= 0.004) continue;
     layStroke(s.pts, shift(s, 1.7), s.w0, s.w1);
     washStroke(out, mix(P.highlight, P.light, 0.45 + 0.3 * s.shade), a, 0.5);
@@ -339,13 +367,13 @@ export function paintPlate(scene: SceneInput, out: Plate = createPlate()): Plate
       const lit = mix(mix(P.light, P.highlight, 0.3 * s.warm), P.glow, near * 0.4);
       layStroke(s.pts, dx, s.w0, s.w1);
       if (isShadow) {
-        washStroke(out, shade, a * (0.18 + 0.2 * smoothstep(4, 18, sun.altitude)), 0.5);
+        washStroke(out, shade, a * (0.18 + 0.2 * smoothstep(4, 18, sun.altitude)) * STYLE.shadowAlpha, 0.5);
         continue;
       }
       const isWarm = s.warm > 0.78 && mid[1] < 0.2;
-      washStroke(out, isWarm ? mix(P.warm, P.light, 0.35) : mix(shade, lit, 0.62 + 0.3 * s.shade), a * (0.28 + 0.12 * s.shade), 0.6);
+      washStroke(out, isWarm ? mix(P.warm, P.light, 0.35) : mix(shade, lit, 0.62 + 0.3 * s.shade), a * (0.28 + 0.12 * s.shade) * STYLE.sweepAlpha, 0.6);
       layStroke(s.pts.map(([px, py]) => [px + 0.03, py + s.w0 * 0.35] as Pt), dx, s.w0 * 0.7, s.w1 * 0.7);
-      washStroke(out, lit, a * 0.26, 0.3);
+      washStroke(out, lit, a * 0.26 * STYLE.crestAlpha, 0.3);
     }
   }
 
@@ -358,16 +386,16 @@ export function paintPlate(scene: SceneInput, out: Plate = createPlate()): Plate
       const cool = s.warm < 0.33;
       const col = cool ? mix(desaturate(P.shadow, 0.2), P.mid, 0.35) : mix(P.light, P.glow, 0.2 + 0.35 * s.shade);
       layStroke(s.pts, dx, s.w0 * (cool ? 0.7 : 1), s.w1 * (cool ? 0.6 : 1), 0.85);
-      washStroke(out, col, a * (cool ? 0.45 : 0.62), 0.7);
+      washStroke(out, col, a * (cool ? 0.45 : 0.62) * STYLE.curtainAlpha, 0.7);
     }
   }
 
   // 5. Overcast: a soft lid in the sky's own grey, never olive.
   const lid = smoothstep(0.68, 1, Math.max(cond.cloud, cond.snow > 0 ? 0.92 + 0.08 * cond.snow : 0));
   if (lid > 0) {
-    const base = mix(mix(P.shadow, P.light, 0.4), P.mid, 0.45);
-    const lowLid = desaturate(scale(base, 0.94), 0.45);
-    const highLid = desaturate(mix(base, P.light, 0.3), 0.45);
+    const base = mix(mix(P.shadow, P.light, 0.4), P.mid, 0.3);
+    const lowLid = desaturate(scale(base, 0.94), 0.62);
+    const highLid = desaturate(mix(base, P.light, 0.3), 0.62);
     eachCell(out, (c, _, v) => mix(c, mix(mix(lowLid, highLid, v), c, 0.3), lid * 0.82));
   }
 

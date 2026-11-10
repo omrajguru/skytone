@@ -11,7 +11,7 @@ export interface Look {
   watercolor: number;
 }
 
-export const DEFAULT_LOOK: Look = { motion: 0.5, softness: 0.3, grain: 0.06, watercolor: 0.85 };
+export const DEFAULT_LOOK: Look = { motion: 0.5, softness: 0.3, grain: 0.06, watercolor: 0 };
 
 export interface RendererOptions {
   /** Resolution relative to CSS pixels × devicePixelRatio. The sky is soft, so 0.5 looks identical. */
@@ -22,6 +22,27 @@ export interface RendererOptions {
   /** Keep the drawing buffer so frames can be read back (exports). */
   preserveDrawingBuffer?: boolean;
 }
+
+/**
+ * Watercolour constants, fitted to a reference by measuring colour, texture, edges and
+ * direction against it. Every effect scales with the look's `watercolor` setting.
+ */
+const WATERCOLOR = {
+  /** Distance (plate cells) the colour is carried along the current: stirred-ink filaments. */
+  advect: 3.46,
+  /** Below 1 stretches the current vertically, like curtains and drips. */
+  aniso: 0.625,
+  /** Scales of the broad and fine currents, cycles per frame height. */
+  freq: 2.2,
+  freq2: 5.2,
+  /** Share of the fine current. */
+  mix: 0.08,
+  /** Gentle bend of wash edges, in plate cells. */
+  bend: 0.6,
+  /** Smoky variation on the paint. */
+  smoke: 0.07,
+};
+const f = (n: number) => n.toFixed(5);
 
 const FRAG = `#version 300 es
 precision highp float;
@@ -55,6 +76,20 @@ vec3 soft(vec2 uv, float r){
   return s / 8.0;
 }
 
+// Curl of a smooth field made of five sine waves at golden-angle directions. It has no grid,
+// so the current it makes is smooth everywhere: carrying colour along it stretches edges into
+// filaments but can never fold, tear, or draw lines.
+vec2 curl(vec2 x){
+  vec2 g = vec2(0.0);
+  for (int k = 0; k < 5; k++){
+    float a = float(k) * 2.39996 + 0.7;
+    float m = 0.75 + 0.15 * float(k);
+    vec2 d = vec2(cos(a), sin(a));
+    g += d * cos(dot(x, d) * 3.14159 * m + float(k) * 1.7);
+  }
+  return vec2(g.y, -g.x) * 0.5;
+}
+
 float fbm4(vec2 p){
   float v = 0.0, a = 0.5;
   for (int i = 0; i < 4; i++){ v += a * vnoise(p); p = mat2(1.6, -1.2, 1.2, 1.6) * p + vec2(3.1, 1.7); a *= 0.5; }
@@ -68,19 +103,24 @@ void main(){
   uv = 0.5 + (uv - 0.5) * (va < pa ? vec2(va / pa, 1.0) : vec2(1.0, pa / va));
   float t = uTime * 0.03;
   vec2 warp = vec2(soft2(uv * 1.3 + vec2(t, 0.0)), soft2(uv * 1.3 + vec2(4.7, 2.1) - t)) - 0.5;
-  // Watercolour. One smooth current bends the washes' edges (small enough that it never folds),
-  // and a faint smoky variation sits on the paint, strongest where two washes meet. The strength
-  // matches what the reference measures: about one level in 255 at mid frequencies.
+  // Watercolour. The colour is carried along a slow curl-noise current, as stirred ink is:
+  // edges stretch into filaments and curls. Then a faint smoky variation and paper grain.
   vec2 p = uv * vec2(pa, 1.0) * 2.6;
   vec2 q = vec2(soft2(p + vec2(t, 0.0)), soft2(p + vec2(5.2, 1.3 - t))) - 0.5;
-  vec2 wuv = uv + warp * uDrift + q * (uWash * 0.6 / uPlateSize.y);
+  vec2 wuv = uv + warp * uDrift + q * (uWash * ${f(WATERCOLOR.bend)} / uPlateSize.y);
+  float h = (${f(WATERCOLOR.advect)} * uWash / 0.85 / uPlateSize.y) / 6.0;
+  for (int n = 0; n < 6; n++){
+    vec2 v = curl(vec2(wuv.x * pa * ${f(WATERCOLOR.freq)}, wuv.y * ${f(WATERCOLOR.freq * WATERCOLOR.aniso)} + t)) * ${f((1 - WATERCOLOR.mix) / WATERCOLOR.freq)}
+           + curl(vec2(wuv.x * pa * ${f(WATERCOLOR.freq2)} + 17.3, wuv.y * ${f(WATERCOLOR.freq2 * WATERCOLOR.aniso)} + 17.3 + t)) * ${f(WATERCOLOR.mix / WATERCOLOR.freq2)};
+    wuv += v * h * 3.0;
+  }
   vec3 c = soft(wuv, uSoft);
   if (uWash > 0.001) {
     vec3 wide = soft(wuv, uSoft + 1.6);
     float edge = smoothstep(0.006, 0.05, length(c - wide));
     float amt = uWash * (0.35 + 0.65 * edge);
     float smoke = fbm4(p + q * 0.8 + vec2(0.0, t * 0.5));
-    c *= 1.0 + (smoke - 0.5) * 0.07 * amt;
+    c *= 1.0 + (smoke - 0.5) * ${f(WATERCOLOR.smoke)} * amt;
     c *= 1.0 + (vnoise(uv * vec2(pa, 1.0) * 380.0) - 0.5) * 0.025 * uWash;
   }
   c += uFlash * vec3(0.55, 0.56, 0.62) * (0.6 + 0.4 * (1.0 - uv.y));

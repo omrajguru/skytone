@@ -20,11 +20,13 @@ export interface Palette {
   glow: RGB;
 }
 
-type Key = { alt: number } & Palette;
+export type Key = { alt: number } & Palette;
 
+// The day, sunset (1°) and dusk (−9°) keys are fitted to a reference watercolour sky, band by band in OKLab.
 // Keyed by sun altitude in degrees, never by clock time: 6 pm in Oslo in December
 // and 6 pm in Mumbai in June are different skies.
-const KEYS: Key[] = [
+/** Palette keyframes by sun altitude. Exported for tuning tools; treat as read-only. */
+export const KEYS: Key[] = [
   {
     alt: -18,
     zenith: [16, 21, 38], mid: [24, 31, 52], horizon: [36, 40, 60], deep: [12, 16, 31],
@@ -33,9 +35,9 @@ const KEYS: Key[] = [
   },
   {
     alt: -9,
-    zenith: [52, 63, 88], mid: [68, 77, 104], horizon: [86, 84, 104], deep: [46, 57, 82],
-    highlight: [84, 90, 118], light: [96, 100, 128], shadow: [62, 68, 94], warm: [88, 80, 96],
-    ground: [62, 56, 64], glow: [128, 110, 136],
+    zenith: [69, 81, 101], mid: [66, 82, 114], horizon: [69, 69, 75], deep: [62, 75, 95],
+    highlight: [94, 99, 121], light: [95, 100, 123], shadow: [60, 71, 100], warm: [76, 69, 76],
+    ground: [54, 48, 48], glow: [121, 103, 123],
   },
   {
     alt: -4,
@@ -45,9 +47,9 @@ const KEYS: Key[] = [
   },
   {
     alt: 1,
-    zenith: [112, 126, 150], mid: [152, 142, 162], horizon: [200, 152, 152], deep: [98, 114, 144],
-    highlight: [166, 156, 176], light: [228, 154, 144], shadow: [140, 138, 154], warm: [218, 162, 150],
-    ground: [150, 136, 146], glow: [246, 176, 150],
+    zenith: [120, 135, 152], mid: [177, 152, 170], horizon: [135, 123, 129], deep: [105, 123, 146],
+    highlight: [181, 164, 176], light: [220, 150, 140], shadow: [159, 146, 160], warm: [171, 141, 134],
+    ground: [112, 117, 133], glow: [217, 164, 141],
   },
   {
     alt: 8,
@@ -57,9 +59,9 @@ const KEYS: Key[] = [
   },
   {
     alt: 30,
-    zenith: [62, 98, 135], mid: [100, 135, 165], horizon: [192, 206, 210], deep: [55, 88, 125],
-    highlight: [104, 146, 180], light: [238, 240, 232], shadow: [142, 146, 130], warm: [182, 166, 140],
-    ground: [192, 206, 210], glow: [255, 250, 236],
+    zenith: [59, 98, 133], mid: [55, 103, 141], horizon: [224, 228, 214], deep: [52, 88, 122],
+    highlight: [70, 119, 163], light: [224, 229, 223], shadow: [109, 123, 113], warm: [202, 181, 141],
+    ground: [210, 220, 212], glow: [255, 255, 238],
   },
 ];
 
