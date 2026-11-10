@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router';
 import { useStudio } from '../state/studio.ts';
 import { useClock, useDaySwatches, useSky, useWeatherSync } from '../state/sky.ts';
@@ -23,6 +23,8 @@ export default function Studio() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const days = useMemo(() => forecastDays(tz), [tz, dayKey]);
   const swatches = useDaySwatches(sky, days);
+  // The sky and timeline follow the playhead every frame; the inspector catches up when there is time.
+  const inspectorSky = useDeferredValue(sky);
 
   useEffect(() => {
     document.title = `${sky.place.name} · Skytone`;
@@ -47,7 +49,7 @@ export default function Studio() {
         <CanvasBox sky={sky} />
         <Timeline sky={sky} days={days} swatches={swatches} />
         <Resizer />
-        <Inspector sky={sky} swatches={swatches} />
+        <Inspector sky={inspectorSky} swatches={swatches} />
       </main>
     </div>
   );

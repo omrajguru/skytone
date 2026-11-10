@@ -13,3 +13,6 @@ firebase-debug.log*
 .claude/
 skills-lock.json
 PLAN.md
+
+# One-off DNS files
+skytone.site.txt

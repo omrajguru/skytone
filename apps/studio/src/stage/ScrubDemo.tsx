@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useRibbon } from '../lib/swatch.ts';
 import type { Look, Plate } from 'skytone';
 import { Roll, Stage, Window, type Act } from './kit';
 import { SkyCanvas } from '../components/SkyCanvas.tsx';
@@ -31,6 +32,7 @@ export function ScrubDemo({ plateAt, dayStart, now, sunsetFrac, clock, summary, 
   look: Look;
 }) {
   const timeAt = (f: number) => dayStart + (FROM + SPAN * f) * HOUR;
+  const ribbon = useRibbon(plateAt, dayStart + FROM * HOUR, SPAN * HOUR, 24);
 
   const script = useMemo(
     () =>
@@ -100,7 +102,7 @@ export function ScrubDemo({ plateAt, dayStart, now, sunsetFrac, clock, summary, 
                 <SkyCanvas className="sd-canvas" plate={plateAt(t)} look={look} />
               </div>
               <div className="sd-ribbon" data-target="ribbon" data-cursor="resize-ew" style={{ width: w }}>
-                <span className="sd-track" style={{ background: ribbonFor(plateAt, timeAt) }} />
+                <span className="sd-track" style={{ background: ribbon || 'var(--ss-well)' }} />
                 <span className="sd-hair" data-on={hx !== null ? '' : undefined} style={hx !== null ? { left: hx } : undefined} />
               </div>
               <div className="sd-axis" style={{ width: w }}>
@@ -113,20 +115,4 @@ export function ScrubDemo({ plateAt, dayStart, now, sunsetFrac, clock, summary, 
       }}
     </Stage>
   );
-}
-
-const ribbonCache = new WeakMap<object, string>();
-function ribbonFor(plateAt: (t: number) => Plate, timeAt: (f: number) => number) {
-  const hit = ribbonCache.get(plateAt);
-  if (hit) return hit;
-  const stops: string[] = [];
-  for (let i = 0; i <= 24; i++) {
-    const p = plateAt(timeAt(i / 24));
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let k = 0; k < p.length; k += 3) { r += p[k]; g += p[k + 1]; b += p[k + 2]; n++; }
-    stops.push(`rgb(${Math.round(r / n)} ${Math.round(g / n)} ${Math.round(b / n)}) ${((i / 24) * 100).toFixed(1)}%`);
-  }
-  const css = `linear-gradient(90deg, ${stops.join(', ')})`;
-  ribbonCache.set(plateAt, css);
-  return css;
 }

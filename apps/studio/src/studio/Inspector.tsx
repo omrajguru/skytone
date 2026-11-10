@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import NumberFlow from '@number-flow/react';
 import { RectangleHorizontal, RectangleVertical, Shuffle } from 'lucide-react';
@@ -20,7 +20,11 @@ const PHASE: Record<string, string> = {
 };
 const ease = [0.23, 1, 0.32, 1] as const;
 
-export function Inspector({ sky, swatches }: { sky: SkyView; swatches: Map<number, DaySwatch> }) {
+/**
+ * The inspector follows the playhead at low priority (the studio hands it a deferred
+ * sky), so dragging through the day never waits on it.
+ */
+export const Inspector = memo(function Inspector({ sky, swatches }: { sky: SkyView; swatches: Map<number, DaySwatch> }) {
   return (
     <aside className="box inspector" aria-label="Controls">
       <FrameSection />
@@ -33,7 +37,7 @@ export function Inspector({ sky, swatches }: { sky: SkyView; swatches: Map<numbe
       </Section>
     </aside>
   );
-}
+});
 
 function FrameSection() {
   const frame = useStudio((s) => s.frame);
@@ -87,7 +91,7 @@ function PlaceSection({ sky }: { sky: SkyView }) {
 }
 
 function TimeSection({ sky, swatches }: { sky: SkyView; swatches: Map<number, DaySwatch> }) {
-  const time = useStudio((s) => s.time);
+  const time = sky.scene.time;
   const setTime = useStudio((s) => s.setTime);
   const tz = sky.place.timezone;
   const dayStart = startOfDay(time, tz);
@@ -103,7 +107,7 @@ function TimeSection({ sky, swatches }: { sky: SkyView; swatches: Map<number, Da
           <span className="mono dim">{utcLabel(time, tz)}</span>
         </span>
       </div>
-      <DatePicker time={time} tz={tz} swatches={swatches} onPick={(iso) => setTime(onDay(iso, time, tz))} />
+      <DatePicker time={time} tz={tz} swatches={swatches} onPick={(iso) => setTime(onDay(iso, useStudio.getState().time, tz))} />
       <dl className="facts">
         <div><dt>Sunrise</dt><dd className="mono">{ev.sunrise ? clock(ev.sunrise, tz) : ev.always === 'up' ? 'Up all day' : 'None'}</dd></div>
         <div><dt>Sunset</dt><dd className="mono">{ev.sunset ? clock(ev.sunset, tz) : ev.always === 'down' ? 'Down all day' : 'None'}</dd></div>
@@ -123,18 +127,24 @@ function WeatherSection({ sky }: { sky: SkyView }) {
   const variation = useStudio((s) => s.variation);
   const forecast = useStudio((s) => s.forecast);
   const status = useStudio((s) => s.forecastStatus);
-  const time = useStudio((s) => s.time);
+  const scrubbing = useStudio((s) => s.scrubbing);
+  const time = sky.scene.time;
   const reduce = useReducedMotion();
 
   const at = conditionsAt(forecast, time);
   const r = at.index >= 0 ? forecast?.readings[at.index] : undefined;
 
-  // Each tile previews its own sky at this place and hour.
-  const hourKey = Math.floor(time / 900_000);
+  // Each tile previews its own sky at this place and hour. They are only painted while
+  // the tiles are on screen, and hold still while the playhead is being dragged.
+  const held = useRef(0);
+  if (!scrubbing) held.current = Math.floor(time / 900_000);
+  const hourKey = held.current;
   const previews = useMemo(
-    () => Object.fromEntries(CONDITION_PRESETS.map((p) => [p.id, miniSky(paintPlate(makeScene(sky.place, time, presetConditions(p.id, intensity), variation)))])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sky.place, hourKey, intensity, variation],
+    () =>
+      mode === 'custom'
+        ? Object.fromEntries(CONDITION_PRESETS.map((p) => [p.id, miniSky(paintPlate(makeScene(sky.place, hourKey * 900_000, presetConditions(p.id, intensity), variation)))]))
+        : ({} as Record<string, string>),
+    [mode, sky.place, hourKey, intensity, variation],
   );
 
   return (
@@ -158,10 +168,10 @@ function WeatherSection({ sky }: { sky: SkyView }) {
               <>
                 <p className="weather-summary">{SUMMARY[sky.summary]}</p>
                 <dl className="readings">
-                  <div><dt>Cloud</dt><dd><NumberFlow value={Math.round(r.cloudCover)} suffix="%" /></dd></div>
-                  <div><dt>Rain</dt><dd><NumberFlow value={r.precipitation} format={{ maximumFractionDigits: 1 }} suffix=" mm" /></dd></div>
-                  <div><dt>Wind</dt><dd><NumberFlow value={Math.round(r.windKmh)} suffix=" km/h" /></dd></div>
-                  <div><dt>Temperature</dt><dd><NumberFlow value={Math.round(r.temperature)} suffix="°" /></dd></div>
+                  <div><dt>Cloud</dt><dd><NumberFlow animated={!scrubbing} value={Math.round(r.cloudCover)} suffix="%" /></dd></div>
+                  <div><dt>Rain</dt><dd><NumberFlow animated={!scrubbing} value={r.precipitation} format={{ maximumFractionDigits: 1 }} suffix=" mm" /></dd></div>
+                  <div><dt>Wind</dt><dd><NumberFlow animated={!scrubbing} value={Math.round(r.windKmh)} suffix=" km/h" /></dd></div>
+                  <div><dt>Temperature</dt><dd><NumberFlow animated={!scrubbing} value={Math.round(r.temperature)} suffix="°" /></dd></div>
                 </dl>
               </>
             ) : (
@@ -213,7 +223,7 @@ function LookSection() {
         </IconButton>
       }
     >
-      <Slider label="Watercolor" value={look.watercolor ?? 0.85} onChange={(watercolor) => setLook({ watercolor })} />
+      <Slider label="Watercolor" value={look.watercolor ?? 0} onChange={(watercolor) => setLook({ watercolor })} />
       <Slider label="Drift" value={look.motion} onChange={(motion) => setLook({ motion })} />
       <Slider label="Softness" value={look.softness} max={2} onChange={(softness) => setLook({ softness })} format={(v) => String(Math.round(v * 50))} />
       <Slider label="Grain" value={look.grain} onChange={(grain) => setLook({ grain })} />

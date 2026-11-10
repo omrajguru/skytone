@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { type Plate, type RGB, oklabToRgb, plateAverage, rgbToOklab, toHex } from 'skytone';
 
 /**
@@ -35,14 +36,31 @@ export const miniSky = (plate: Plate) => {
   return `linear-gradient(180deg, ${a}, ${b} 55%, ${c})`;
 };
 
-/** The whole day as a horizontal ribbon of its sky colours. */
-export function dayRibbon(plateAt: (t: number) => Plate, dayStart: number, stops = 48) {
-  const parts: string[] = [];
-  for (let i = 0; i <= stops; i++) {
-    const c = plateAverage(plateAt(dayStart + (i / stops) * DAY), 0.2, 0.9);
-    parts.push(`${toHex(c)} ${((i / stops) * 100).toFixed(2)}%`);
-  }
-  return `linear-gradient(90deg, ${parts.join(', ')})`;
+/**
+ * A span of time as a horizontal ribbon of its sky colours, painted a few plates at a time
+ * while the browser is idle, so a long day never blocks a frame.
+ */
+export function useRibbon(plateAt: (t: number) => Plate, start: number, span = DAY, stops = 48) {
+  const [ribbon, setRibbon] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    const parts: string[] = [];
+    let i = 0;
+    const work = () => {
+      if (cancelled) return;
+      const until = performance.now() + 10;
+      while (i <= stops && performance.now() < until) {
+        const c = plateAverage(plateAt(start + (i / stops) * span), 0.2, 0.9);
+        parts.push(`${toHex(c)} ${((i / stops) * 100).toFixed(2)}%`);
+        i++;
+      }
+      if (i > stops) setRibbon(`linear-gradient(90deg, ${parts.join(', ')})`);
+      else cancel = whenIdle(work);
+    };
+    let cancel = whenIdle(work);
+    return () => { cancelled = true; cancel(); };
+  }, [plateAt, start, span, stops]);
+  return ribbon;
 }
 
 /** Run work when the browser is idle, cancellable. */

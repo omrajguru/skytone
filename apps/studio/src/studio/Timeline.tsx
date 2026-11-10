@@ -6,7 +6,7 @@ import { useStudio } from '../state/studio.ts';
 import type { DaySwatch, SkyView } from '../state/sky.ts';
 import { useReducedMotion } from '../state/sky.ts';
 import { DAY, HOUR, MINUTE, clock, dayChip, startOfDay } from '../lib/time.ts';
-import { dayRibbon, whenIdle } from '../lib/swatch.ts';
+import { useRibbon } from '../lib/swatch.ts';
 import { IconButton } from '../components/controls.tsx';
 
 const W = 1000;
@@ -28,8 +28,7 @@ export function Timeline({ sky, days, swatches }: { sky: SkyView; days: number[]
   const dayStart = startOfDay(time, tz);
   const today = startOfDay(Date.now(), tz);
 
-  const [ribbon, setRibbon] = useState('');
-  useEffect(() => whenIdle(() => setRibbon(dayRibbon(plateAt, dayStart))), [dayStart, plateAt]);
+  const ribbon = useRibbon(plateAt, dayStart);
 
   const { lat, lon } = { lat: place.latitude, lon: place.longitude };
   const events = useMemo(() => sunEvents(dayStart, lat, lon), [dayStart, lat, lon]);
@@ -61,6 +60,27 @@ export function Timeline({ sky, days, swatches }: { sky: SkyView; days: number[]
     return dayStart + Math.round((f * DAY) / MINUTE) * MINUTE;
   };
   const jump = (t: number) => { setJumping(!reduce); setTime(t); };
+
+  // Pointer events can outnumber frames; only the latest position each frame is applied.
+  const pending = useRef<{ x: number; raf: number }>({ x: 0, raf: 0 });
+  const queueX = (clientX: number) => {
+    pending.current.x = clientX;
+    if (pending.current.raf) return;
+    pending.current.raf = requestAnimationFrame(() => {
+      pending.current.raf = 0;
+      if (area.current) setTime(timeFromX(pending.current.x));
+    });
+  };
+  const endDrag = () => {
+    if (pending.current.raf) {
+      cancelAnimationFrame(pending.current.raf);
+      pending.current.raf = 0;
+      setTime(timeFromX(pending.current.x));
+    }
+    setDragging(false);
+    useStudio.getState().setScrubbing(false);
+  };
+  useEffect(() => () => cancelAnimationFrame(pending.current.raf), []);
 
   const chipsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -117,11 +137,13 @@ export function Timeline({ sky, days, swatches }: { sky: SkyView; days: number[]
           e.currentTarget.setPointerCapture(e.pointerId);
           setDragging(true);
           setPlaying(false);
+          useStudio.getState().setScrubbing(true);
+          pending.current.x = e.clientX;
           setTime(timeFromX(e.clientX));
         }}
-        onPointerMove={(e) => dragging && setTime(timeFromX(e.clientX))}
-        onPointerUp={() => setDragging(false)}
-        onPointerCancel={() => setDragging(false)}
+        onPointerMove={(e) => dragging && queueX(e.clientX)}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         onTransitionEnd={() => setJumping(false)}
         onKeyDown={(e) => {
           const step = (e.shiftKey ? 60 : 15) * MINUTE;

@@ -17,7 +17,12 @@ const FORMATS: { value: ExportFormat; label: string }[] = [
 
 
 export function ExportPanel({ sky }: { sky: SkyView }) {
-  const s = useStudio();
+  // Only what this panel shows; the rest is read when the export starts.
+  const exportFormat = useStudio((st) => st.exportFormat);
+  const videoSeconds = useStudio((st) => st.videoSeconds);
+  const videoMotion = useStudio((st) => st.videoMotion);
+  const setExport = useStudio((st) => st.setExport);
+  const s = { exportFormat, videoSeconds, videoMotion, setExport };
   const [progress, setProgress] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
   const busy = progress !== null;
@@ -27,19 +32,20 @@ export function ExportPanel({ sky }: { sky: SkyView }) {
     const ctrl = new AbortController();
     abort.current = ctrl;
     setProgress(0);
+    const st = useStudio.getState();
     try {
       const { blob, filename } = await runExport({
-        format: s.exportFormat,
-        width: s.frame.width,
-        height: s.frame.height,
-        plate: sky.plate,
-        look: s.look,
+        format: st.exportFormat,
+        width: st.frame.width,
+        height: st.frame.height,
+        plate: sky.plateAt(st.time),
+        look: st.look,
         storm: sky.conditions.storm,
         plateAt: sky.plateAt,
-        dayStart: startOfDay(s.time, sky.place.timezone),
-        videoSeconds: s.videoSeconds,
-        videoMotion: s.videoMotion,
-        filename: `skytone-${slug(sky.place.name)}-${stamp(s.time, sky.place.timezone)}`,
+        dayStart: startOfDay(st.time, sky.place.timezone),
+        videoSeconds: st.videoSeconds,
+        videoMotion: st.videoMotion,
+        filename: `skytone-${slug(sky.place.name)}-${stamp(st.time, sky.place.timezone)}`,
         onProgress: (p) => setProgress(p),
         signal: ctrl.signal,
       });

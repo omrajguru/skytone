@@ -32,6 +32,8 @@ interface StudioState {
   /** Follow the real clock. */
   live: boolean;
   playing: boolean;
+  /** The playhead is being dragged. */
+  scrubbing: boolean;
   weatherMode: 'live' | 'custom';
   preset: ConditionPreset;
   intensity: number;
@@ -51,6 +53,7 @@ interface StudioState {
   setTime: (time: number) => void;
   goLive: () => void;
   setPlaying: (playing: boolean) => void;
+  setScrubbing: (scrubbing: boolean) => void;
   setWeatherMode: (mode: 'live' | 'custom') => void;
   setPreset: (preset: ConditionPreset) => void;
   setIntensity: (v: number) => void;
@@ -71,6 +74,7 @@ export const useStudio = create<StudioState>()(
       time: Date.now(),
       live: true,
       playing: false,
+      scrubbing: false,
       weatherMode: 'live',
       preset: 'partly',
       intensity: 0.5,
@@ -89,6 +93,7 @@ export const useStudio = create<StudioState>()(
       setTime: (time) => set({ time, live: false }),
       goLive: () => set({ time: Date.now(), live: true, playing: false }),
       setPlaying: (playing) => set(playing ? { playing, live: false } : { playing }),
+      setScrubbing: (scrubbing) => set({ scrubbing }),
       setWeatherMode: (weatherMode) => set({ weatherMode }),
       setPreset: (preset) => set({ preset, weatherMode: 'custom' }),
       setIntensity: (intensity) => set({ intensity }),
@@ -101,7 +106,13 @@ export const useStudio = create<StudioState>()(
     }),
     {
       name: 'skytone.studio',
-      version: 1,
+      version: 2,
+      // v2 turns watercolour off by default; earlier saves get the new default once.
+      migrate: (saved, version) => {
+        const s = (saved ?? {}) as Partial<StudioState>;
+        if (version < 2 && s.look) s.look = { ...s.look, watercolor: 0 };
+        return s as StudioState;
+      },
       // Older saves predate newer look settings; fill them from today's defaults.
       merge: (saved, current) => {
         const s = (saved ?? {}) as Partial<StudioState>;

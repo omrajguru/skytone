@@ -129,6 +129,9 @@ export function makeScene(place: Place, time: number, conditions: Conditions, va
   });
 }
 
+/** About 10 MB of plates: a day scrubbed at a few minutes' resolution. */
+const PLATE_CACHE = 96;
+
 export interface SkyView {
   place: Place;
   scene: SceneInput;
@@ -152,9 +155,24 @@ export function useSky(opts: { forecastOnly?: boolean } = {}): SkyView {
   const variation = opts.forecastOnly ? 0 : storedVariation;
   const forecast = useStudio((s) => s.forecast);
 
-  const plateAt = useMemo(() => (t: number) => {
-    const { conditions } = conditionsFor({ weatherMode, preset, intensity }, forecast, t);
-    return paintPlate(makeScene(place, t, conditions, variation));
+  // Painting is deterministic for a given instant and settings, so plates are kept
+  // and reused: scrubbing back over an hour costs nothing, and the plate is the same
+  // one an export would paint.
+  const plateAt = useMemo(() => {
+    const cache = new Map<number, Plate>();
+    return (t: number) => {
+      const hit = cache.get(t);
+      if (hit) {
+        cache.delete(t);
+        cache.set(t, hit);
+        return hit;
+      }
+      const { conditions } = conditionsFor({ weatherMode, preset, intensity }, forecast, t);
+      const plate = paintPlate(makeScene(place, t, conditions, variation));
+      cache.set(t, plate);
+      if (cache.size > PLATE_CACHE) cache.delete(cache.keys().next().value!);
+      return plate;
+    };
   }, [place, weatherMode, preset, intensity, variation, forecast]);
 
   return useMemo(() => {
@@ -162,7 +180,7 @@ export function useSky(opts: { forecastOnly?: boolean } = {}): SkyView {
     const scene = makeScene(place, time, conditions, variation);
     return {
       place, scene, conditions, known, plateAt,
-      plate: paintPlate(scene),
+      plate: plateAt(time),
       phase: phaseOf(scene.sun.altitude),
       summary: describe(conditions),
     };
